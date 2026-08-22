@@ -5,8 +5,8 @@ import {
   criarRotulo,
   atualizarRotulo,
   deletarRotulo
-} from '../controladores/rotuloControlador.js';
-import verificarToken from '../middleware/autenticacao.js';
+} from '../../controllers/rotuloController.js';
+import verificarToken from '../../middlewares/autenticacao.js';
 
 const router = Router();
 

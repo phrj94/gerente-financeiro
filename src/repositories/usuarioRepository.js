@@ -94,5 +94,31 @@ export const usuarioRepository = {
     async buscarPatrimonio(id) {
         const [rows] = await db.execute('SELECT patrimonio FROM usuario WHERE id = ?', [id]);
         return rows[0]?.patrimonio || 0;
+    },
+
+    /**
+     * Busca os perfis de movimentação de um usuário
+     * @param {number} usuarioId 
+     * @returns {Promise<Array>} - Array de perfis
+    */
+    async buscarPerfis(usuarioId) {
+        const [rows] = await db.execute(
+            'SELECT perfis FROM usuario WHERE id = ?',
+            [usuarioId]
+        );
+        const perfis = rows[0]?.perfis;
+        return perfis ? JSON.parse(perfis) : [];
+    },
+
+    /**
+     * Atualiza os perfis de movimentação de um usuário
+     * @param {number} usuarioId 
+     * @param {Array} perfis - Array de perfis
+     */
+    async atualizarPerfis(usuarioId, perfis) {
+        await db.execute(
+            'UPDATE usuario SET perfis = ? WHERE id = ?',
+            [JSON.stringify(perfis), usuarioId]
+        );
     }
 };

@@ -3,8 +3,8 @@ import {
   buscarPerfil,
   atualizarPerfil,
   resumoFinanceiro
-} from '../controladores/usuarioControlador.js';
-import verificarToken from '../middleware/autenticacao.js';
+} from '../../controllers/usuarioController.js';
+import verificarToken from '../../middlewares/autenticacao.js';
 
 const router = Router();
 

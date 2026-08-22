@@ -1,14 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-
-import autenticacaoRoutes from './routes/autenticacaoRoutes.js';
-import usuarioRoutes from './routes/usuarioRoutes.js';
-import movimentacaoRoutes from './routes/movimentacaoRoutes.js';
-import responsavelRoutes from './routes/responsavelRoutes.js';
-import rotuloRoutes from './routes/rotuloRoutes.js';
-import bancoRoutes from './routes/bancoRoutes.js';
-import apoioRoutes from './routes/apoioRoutes.js';
+import router from './routes/v1/index.js';
 
 dotenv.config();
 
@@ -16,16 +9,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Rotas públicas (autenticação)
-app.use('/api/auth', autenticacaoRoutes);
-
-// Rotas protegidas (exigem token)
-app.use('/api/usuarios', usuarioRoutes);
-app.use('/api/movimentacoes', movimentacaoRoutes);
-app.use('/api/responsaveis', responsavelRoutes);
-app.use('/api/rotulos', rotuloRoutes);
-app.use('/api/bancos', bancoRoutes);
-app.use('/api', apoioRoutes); // categorias e formas-pagamento (já protegidas via middleware)
+// Prefixo da API versionada
+app.use('/api/v1', router);
 
 const PORTA = process.env.PORT || 3000;
 app.listen(PORTA, '0.0.0.0', () => {

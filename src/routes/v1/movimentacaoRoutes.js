@@ -6,8 +6,8 @@ import {
     atualizarMovimentacao,
     deletarMovimentacao,
     resumoMovimentacoes
-} from '../controladores/movimentacaoControlador.js';
-import verificarToken from '../middleware/autenticacao.js';
+} from '../../controllers/movimentacaoController.js';
+import verificarToken from '../../middlewares/autenticacao.js';
 
 const router = Router();
 router.use(verificarToken);

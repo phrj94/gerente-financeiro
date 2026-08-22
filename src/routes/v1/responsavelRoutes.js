@@ -5,8 +5,8 @@ import {
   criarResponsavel,
   atualizarResponsavel,
   deletarResponsavel
-} from '../controladores/responsavelControlador.js';
-import verificarToken from '../middleware/autenticacao.js';
+} from '../../controllers/responsavelController.js';
+import verificarToken from '../../middlewares/autenticacao.js';
 
 const router = Router();
 
