@@ -20,7 +20,6 @@ const camposPerfilSchema = Joi.object({
  * POST /api/v1/perfil-movimentacao
  */
 export const criarPerfilSchema = Joi.object({
-  id: Joi.number().integer().required(),
   nome: Joi.string().required().max(100).trim().messages({
     'string.empty': 'O nome do perfil é obrigatório',
     'string.max': 'O nome deve ter no máximo 100 caracteres',
@@ -49,8 +48,8 @@ export const atualizarPerfilSchema = Joi.object({
  * GET, PUT, DELETE /api/v1/perfis-movimentacao/:id
  */
 export const perfilIdSchema = Joi.object({
-  id: Joi.string().required().messages({
-    'string.empty': 'O ID do perfil é obrigatório',
+  id: Joi.number().integer().required().messages({
+    'integer.empty': 'O ID do perfil é obrigatório',
     'any.required': 'O ID do perfil é obrigatório'
   })
 });

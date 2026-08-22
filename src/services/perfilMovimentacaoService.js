@@ -18,6 +18,12 @@ export const perfilMovimentacaoService = {
     if (!nome || !campos) {
       throw new Error('Nome e campos são obrigatórios');
     }
+    const perfil = await perfilMovimentacaoRepository.buscarPorNome(nome, usuarioId);
+    
+    if (perfil) {
+      throw new Error('Já existe um perfil com esse nome');
+    }
+
     return perfilMovimentacaoRepository.criar(usuarioId, nome, campos);
   },
 

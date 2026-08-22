@@ -31,6 +31,21 @@ export const perfilMovimentacaoRepository = {
     },
 
     /**
+     * Busca um perfil por nome
+     */
+    async buscarPorNome(nome, usuarioId) {
+        const [rows] = await db.execute(
+            'SELECT id, id_usuario, nome, campos, criado_em, atualizado_em FROM perfil_movimentacao WHERE nome = ? AND id_usuario = ?',
+            [nome, usuarioId]
+        );
+        if (rows.length === 0) return null;
+        return {
+            ...rows[0],
+            campos: JSON.parse(rows[0].campos)
+        };
+    },
+
+    /**
      * Cria um novo perfil
      */
     async criar(usuarioId, nome, campos) {
