@@ -20,6 +20,7 @@ const camposPerfilSchema = Joi.object({
  * POST /api/v1/perfil-movimentacao
  */
 export const criarPerfilSchema = Joi.object({
+  id: Joi.number().integer().required(),
   nome: Joi.string().required().max(100).trim().messages({
     'string.empty': 'O nome do perfil é obrigatório',
     'string.max': 'O nome deve ter no máximo 100 caracteres',
