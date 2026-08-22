@@ -7,14 +7,14 @@ export const perfilMovimentacaoService = {
      * Lista todos os perfis do usuário
      */
     async listar(usuarioId) {
-        return usuarioRepository.buscarPerfis(usuarioId);
+        return usuarioRepository.buscarPerfisMovimentacao(usuarioId);
     },
 
     /**
      * Busca um perfil por ID
      */
     async buscarPorId(usuarioId, perfilId) {
-        const perfis = await usuarioRepository.buscarPerfis(usuarioId);
+        const perfis = await usuarioRepository.buscarPerfilMovimentacaoPorId(usuarioId);
         const perfil = perfis.find(p => p.id === perfilId);
         if (!perfil) {
             throw new Error('Perfil não encontrado');
@@ -31,7 +31,7 @@ export const perfilMovimentacaoService = {
             throw new Error('Nome e campos são obrigatórios');
         }
 
-        const perfis = await usuarioRepository.buscarPerfis(usuarioId);
+        const perfis = await usuarioRepository.buscarPerfisMovimentacao(usuarioId);
 
         // Validar nome único
         if (perfis.some(p => p.nome === nome)) {
@@ -45,7 +45,7 @@ export const perfilMovimentacaoService = {
         };
 
         perfis.push(novoPerfil);
-        await usuarioRepository.atualizarPerfis(usuarioId, perfis);
+        await usuarioRepository.atualizarPerfisMovimentacao(usuarioId, perfis);
         return novoPerfil;
     },
 
@@ -53,7 +53,7 @@ export const perfilMovimentacaoService = {
      * Atualiza um perfil existente
      */
     async atualizar(usuarioId, perfilId, dados) {
-        const perfis = await usuarioRepository.buscarPerfis(usuarioId);
+        const perfis = await usuarioRepository.buscarPerfisMovimentacao(usuarioId);
         const index = perfis.findIndex(p => p.id === perfilId);
         if (index === -1) {
             throw new Error('Perfil não encontrado');
@@ -71,7 +71,7 @@ export const perfilMovimentacaoService = {
             ...dados
         };
 
-        await usuarioRepository.atualizarPerfis(usuarioId, perfis);
+        await usuarioRepository.atualizarPerfisMovimentacao(usuarioId, perfis);
         return perfis[index];
     },
 
@@ -79,12 +79,12 @@ export const perfilMovimentacaoService = {
      * Deleta um perfil
      */
     async deletar(usuarioId, perfilId) {
-        const perfis = await usuarioRepository.buscarPerfis(usuarioId);
+        const perfis = await usuarioRepository.buscarPerfisMovimentacao(usuarioId);
         const novosPerfis = perfis.filter(p => p.id !== perfilId);
         if (perfis.length === novosPerfis.length) {
             throw new Error('Perfil não encontrado');
         }
-        await usuarioRepository.atualizarPerfis(usuarioId, novosPerfis);
+        await usuarioRepository.atualizarPerfisMovimentacao(usuarioId, novosPerfis);
         return true;
     }
 };

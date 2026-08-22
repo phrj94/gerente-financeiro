@@ -4,3 +4,4 @@ export * from './financeiroService.js';
 export * from './bancoService.js';
 export * from './responsavelService.js';
 export * from './rotuloService.js';
+export * from './perfilMovimentacaoService.js';

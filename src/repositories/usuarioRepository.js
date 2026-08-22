@@ -34,9 +34,9 @@ export const usuarioRepository = {
      */
     async criar(dados) {
         const [result] = await db.execute(
-            `INSERT INTO usuario (nome, email, usuario, senha, data_nascimento, patrimonio)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-            [dados.nome, dados.email, dados.usuario, dados.senha, dados.data_nascimento || null, 0]
+            `INSERT INTO usuario (nome, email, usuario, senha, data_nascimento, patrimonio, perfis_movimentacao)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [dados.nome, dados.email, dados.usuario, dados.senha, dados.data_nascimento || null, 0, '[]']
         );
         return result.insertId;
     },
@@ -164,7 +164,7 @@ export const usuarioRepository = {
      * @param {number} usuarioId 
      * @param {Array} perfis - Array de perfis
      */
-    async atualizarPerfis(usuarioId, perfis) {
+    async atualizarPerfisMovimentacao(usuarioId, perfis) {
         await db.execute(
             'UPDATE usuario SET perfis = ? WHERE id = ?',
             [JSON.stringify(perfis), usuarioId]
