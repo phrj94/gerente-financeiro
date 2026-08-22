@@ -1,10 +1,8 @@
 import { Router } from 'express';
-import {
-  buscarPerfil,
-  atualizarPerfil,
-  resumoFinanceiro
-} from '../../controllers/usuarioController.js';
+import { buscarPerfil, atualizarPerfil, resumoFinanceiro } from '../../controllers/usuarioController.js';
 import verificarToken from '../../middlewares/autenticacao.js';
+import { validate } from '../../middlewares/validate.js';
+import { atualizarPerfilSchema } from '../../validations/usuarioValidation.js';
 
 const router = Router();
 
@@ -13,7 +11,7 @@ router.use(verificarToken);
 
 // Perfil do usuário logado
 router.get('/perfil', buscarPerfil);
-router.put('/perfil', atualizarPerfil);
+router.put('/perfil', validate(atualizarPerfilSchema), atualizarPerfil);
 
 // Resumo financeiro (patrimônio, saldos, limites)
 router.get('/resumo-financeiro', resumoFinanceiro);

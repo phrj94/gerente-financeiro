@@ -7,25 +7,16 @@ import {
   deletarResponsavel
 } from '../../controllers/responsavelController.js';
 import verificarToken from '../../middlewares/autenticacao.js';
+import { validate } from '../../middlewares/validate.js';
+import { criarResponsavelSchema, atualizarResponsavelSchema } from '../../validations/responsavelValidation.js';
 
 const router = Router();
 
-// Todas as rotas de responsável exigem autenticação
 router.use(verificarToken);
-
-// Listar todos os responsáveis do usuário + sistema
 router.get('/', listarResponsaveis);
-
-// Criar um novo responsável
-router.post('/', criarResponsavel);
-
-// Buscar um responsável específico
+router.post('/', validate(criarResponsavelSchema), criarResponsavel);
 router.get('/:id', buscarResponsavel);
-
-// Atualizar um responsável (apenas os criados pelo usuário)
-router.put('/:id', atualizarResponsavel);
-
-// Deletar um responsável (apenas os criados pelo usuário)
+router.put('/:id', validate(atualizarResponsavelSchema), atualizarResponsavel);
 router.delete('/:id', deletarResponsavel);
 
 export default router;

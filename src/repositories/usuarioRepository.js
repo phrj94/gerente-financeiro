@@ -101,13 +101,62 @@ export const usuarioRepository = {
      * @param {number} usuarioId 
      * @returns {Promise<Array>} - Array de perfis
     */
-    async buscarPerfis(usuarioId) {
+    async buscarPerfisMovimentacao(usuarioId) {
         const [rows] = await db.execute(
             'SELECT perfis FROM usuario WHERE id = ?',
             [usuarioId]
         );
         const perfis = rows[0]?.perfis;
         return perfis ? JSON.parse(perfis) : [];
+    },
+
+    /**
+     * Busca um perfil de movimentação por ID
+     * @param {number} id
+     * @param {number} usuarioId
+     * @returns {Promise<object|null>}
+     */
+    async buscarPerfilMovimentacaoPorId(id, usuarioId) {
+        const [rows] = await db.execute(
+            `SELECT id, nome, campos FROM perfil_movimentacao WHERE id = ? AND id_usuario = ?`,
+            [id, usuarioId]
+        );
+        if (rows.length === 0) return null;
+        return {
+            ...rows[0],
+            campos: typeof rows[0].campos === 'string' ? JSON.parse(rows[0].campos) : rows[0].campos
+        };
+    },
+
+    /** 
+     * Cria um novo perfil de movimentação para o usuário
+     * @param {number} usuarioId
+     * @param {string} nome
+     * @param {object} campos
+     * @returns {Promise<number>} ID do perfil criado
+     */
+    async criarPerfilMovimentacao(usuarioId, nome, campos) {
+        const [result] = await db.execute(
+            `INSERT INTO perfil_movimentacao (id_usuario, nome, campos) VALUES (?, ?, ?)`,
+            [usuarioId, nome, JSON.stringify(campos)]
+        );
+        return result.insertId;
+    },
+
+    /**
+     * Atualiza um perfil de movimentação existente
+     * @param {number} id
+     * @param {number} usuarioId
+     * @param {string} nome
+     * @param {object} campos
+     * @returns {Promise<boolean>} true se atualizado
+     */
+    async atualizarPerfilMovimentacaoPorUsuario(id, usuarioId, nome, campos) {
+        const [result] = await db.execute(
+            `UPDATE perfil_movimentacao SET nome = ?, campos = ? WHERE id = ? AND id_usuario = ?`,
+            [nome, JSON.stringify(campos), id, usuarioId]
+        );
+        return result.affectedRows > 0;
     },
 
     /**
@@ -120,5 +169,19 @@ export const usuarioRepository = {
             'UPDATE usuario SET perfis = ? WHERE id = ?',
             [JSON.stringify(perfis), usuarioId]
         );
+    },
+
+    /**
+     * Deleta um perfil de movimentação de um usuário
+     * @param {number} id
+     * @param {number} usuarioId
+     * @returns {Promise<boolean>} true se deletado
+     */
+    async deletarPerfilMovimentacao(id, usuarioId) {
+        const [result] = await db.execute(
+            `DELETE FROM perfil_movimentacao WHERE id = ? AND id_usuario = ?`,
+            [id, usuarioId]
+        );
+        return result.affectedRows > 0;
     }
 };

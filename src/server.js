@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import router from './routes/v1/index.js';
+import { errorHandler } from './middlewares/errorHandler.js';
 
 dotenv.config();
 
@@ -11,6 +12,9 @@ app.use(express.json());
 
 // Prefixo da API versionada
 app.use('/api/v1', router);
+
+// Middleware de erros (último)
+app.use(errorHandler);
 
 const PORTA = process.env.PORT || 3000;
 app.listen(PORTA, '0.0.0.0', () => {
