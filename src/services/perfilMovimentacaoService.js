@@ -1,90 +1,61 @@
-// src/services/perfilMovimentacaoService.js
-import { usuarioRepository } from '../repositories/index.js';
-import { v4 as uuidv4 } from 'uuid';
+import { perfilMovimentacaoRepository } from '../repositories/perfilMovimentacaoRepository.js';
 
 export const perfilMovimentacaoService = {
-    /**
-     * Lista todos os perfis do usuário
-     */
-    async listar(usuarioId) {
-        return usuarioRepository.buscarPerfisMovimentacao(usuarioId);
-    },
+  async listar(usuarioId) {
+    return perfilMovimentacaoRepository.listarPorUsuario(usuarioId);
+  },
 
-    /**
-     * Busca um perfil por ID
-     */
-    async buscarPorId(usuarioId, perfilId) {
-        const perfis = await usuarioRepository.buscarPerfilMovimentacaoPorId(usuarioId);
-        const perfil = perfis.find(p => p.id === perfilId);
-        if (!perfil) {
-            throw new Error('Perfil não encontrado');
-        }
-        return perfil;
-    },
-
-    /**
-     * Cria um novo perfil
-     */
-    async criar(usuarioId, dados) {
-        const { nome, campos } = dados;
-        if (!nome || !campos) {
-            throw new Error('Nome e campos são obrigatórios');
-        }
-
-        const perfis = await usuarioRepository.buscarPerfisMovimentacao(usuarioId);
-
-        // Validar nome único
-        if (perfis.some(p => p.nome === nome)) {
-            throw new Error('Já existe um perfil com este nome');
-        }
-
-        const novoPerfil = {
-            id: uuidv4(),
-            nome,
-            campos
-        };
-
-        perfis.push(novoPerfil);
-        await usuarioRepository.atualizarPerfisMovimentacao(usuarioId, perfis);
-        return novoPerfil;
-    },
-
-    /**
-     * Atualiza um perfil existente
-     */
-    async atualizar(usuarioId, perfilId, dados) {
-        const perfis = await usuarioRepository.buscarPerfisMovimentacao(usuarioId);
-        const index = perfis.findIndex(p => p.id === perfilId);
-        if (index === -1) {
-            throw new Error('Perfil não encontrado');
-        }
-
-        // Se estiver alterando o nome, validar unicidade
-        if (dados.nome && dados.nome !== perfis[index].nome) {
-            if (perfis.some(p => p.nome === dados.nome && p.id !== perfilId)) {
-                throw new Error('Já existe um perfil com este nome');
-            }
-        }
-
-        perfis[index] = {
-            ...perfis[index],
-            ...dados
-        };
-
-        await usuarioRepository.atualizarPerfisMovimentacao(usuarioId, perfis);
-        return perfis[index];
-    },
-
-    /**
-     * Deleta um perfil
-     */
-    async deletar(usuarioId, perfilId) {
-        const perfis = await usuarioRepository.buscarPerfisMovimentacao(usuarioId);
-        const novosPerfis = perfis.filter(p => p.id !== perfilId);
-        if (perfis.length === novosPerfis.length) {
-            throw new Error('Perfil não encontrado');
-        }
-        await usuarioRepository.atualizarPerfisMovimentacao(usuarioId, novosPerfis);
-        return true;
+  async buscarPorId(usuarioId, perfilId) {
+    const perfil = await perfilMovimentacaoRepository.buscarPorId(perfilId, usuarioId);
+    if (!perfil) {
+      throw new Error('Perfil não encontrado');
     }
+    return perfil;
+  },
+
+  async criar(usuarioId, dados) {
+    const { nome, campos } = dados;
+    if (!nome || !campos) {
+      throw new Error('Nome e campos são obrigatórios');
+    }
+    return perfilMovimentacaoRepository.criar(usuarioId, nome, campos);
+  },
+
+  async atualizar(usuarioId, perfilId, dados) {
+    // Verificar se existe
+    const perfilExistente = await this.buscarPorId(usuarioId, perfilId);
+    if (!perfilExistente) {
+      throw new Error('Perfil não encontrado');
+    }
+
+    // Preparar atualização
+    const atualizacao = {};
+    if (dados.nome !== undefined) atualizacao.nome = dados.nome;
+    if (dados.campos !== undefined) atualizacao.campos = dados.campos;
+
+    if (Object.keys(atualizacao).length === 0) {
+      throw new Error('Nenhum campo para atualizar');
+    }
+
+    const perfilAtualizado = await perfilMovimentacaoRepository.atualizar(
+      perfilId,
+      usuarioId,
+      atualizacao
+    );
+    if (!perfilAtualizado) {
+      throw new Error('Erro ao atualizar perfil');
+    }
+    return perfilAtualizado;
+  },
+
+  async deletar(usuarioId, perfilId) {
+    // Verificar se existe
+    await this.buscarPorId(usuarioId, perfilId);
+
+    const deletado = await perfilMovimentacaoRepository.deletar(perfilId, usuarioId);
+    if (!deletado) {
+      throw new Error('Erro ao deletar perfil');
+    }
+    return true;
+  }
 };

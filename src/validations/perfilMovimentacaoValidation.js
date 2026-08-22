@@ -17,7 +17,7 @@ const camposPerfilSchema = Joi.object({
 
 /**
  * Schema para criação de um novo perfil de movimentação
- * POST /api/v1/perfis-movimentacao
+ * POST /api/v1/perfil-movimentacao
  */
 export const criarPerfilSchema = Joi.object({
   nome: Joi.string().required().max(100).trim().messages({
