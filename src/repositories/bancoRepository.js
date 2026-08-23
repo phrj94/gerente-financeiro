@@ -122,6 +122,67 @@ export const bancoRepository = {
     },
 
     /**
+     * Busca um vínculo de banco por ID do banco e usuário
+     * @param {number} usuarioId
+     * @param {number} bancoId
+     * @returns {Promise<object|null>} - { id, saldo, limite_credito }
+     */
+    async buscarVinculoPorBanco(usuarioId, bancoId) {
+        const [rows] = await db.execute(
+            'SELECT id, saldo, limite_credito FROM banco_usuario WHERE id_usuario = ? AND id_banco = ?',
+            [usuarioId, bancoId]
+        );
+        return rows[0] || null;
+    },
+
+    /**
+     * Atualiza o saldo de um banco vinculado (incrementa ou decrementa)
+     * @param {number} vinculoId
+     * @param {number} usuarioId
+     * @param {number} valor - valor a ser adicionado (positivo) ou subtraído (negativo)
+     * @param {object} connection - conexão com o banco de dados (opcional)
+     * @returns {Promise<number>} - novo saldo
+     */
+    async ajustarSaldo(vinculoId, usuarioId, valor, connection = null) {
+        const dbConn = connection || db;
+        const [result] = await dbConn.execute(
+            'UPDATE banco_usuario SET saldo = saldo + ? WHERE id = ? AND id_usuario = ?',
+            [valor, vinculoId, usuarioId]
+        );
+        if (result.affectedRows === 0) {
+            throw new Error('Banco não encontrado ou não vinculado');
+        }
+        const [rows] = await db.execute(
+            'SELECT saldo FROM banco_usuario WHERE id = ?',
+            [vinculoId]
+        );
+        return rows[0].saldo;
+    },
+
+    /**
+     * Atualiza o limite de crédito de um banco vinculado (incrementa ou decrementa)
+     * @param {number} vinculoId
+     * @param {number} usuarioId
+     * @param {number} valor - valor a ser adicionado (positivo) ou subtraído (negativo)
+     * @returns {Promise<number>} - novo limite
+     */
+    async ajustarLimiteCredito(vinculoId, usuarioId, valor, connection = null) {
+        const dbConn = connection || db;
+        const [result] = await dbConn.execute(
+            'UPDATE banco_usuario SET limite_credito = limite_credito + ? WHERE id = ? AND id_usuario = ?',
+            [valor, vinculoId, usuarioId]
+        );
+        if (result.affectedRows === 0) {
+            throw new Error('Banco não encontrado ou não vinculado');
+        }
+        const [rows] = await db.execute(
+            'SELECT limite_credito FROM banco_usuario WHERE id = ?',
+            [vinculoId]
+        );
+        return rows[0].limite_credito;
+    },
+
+    /**
      * Verifica se um banco já está vinculado ao usuário
      * @param {number} usuarioId
      * @param {number} bancoId

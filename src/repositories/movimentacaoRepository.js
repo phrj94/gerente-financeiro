@@ -4,10 +4,12 @@ export const movimentacaoRepository = {
     /**
      * Cria uma movimentação
      * @param {object} dados - todos os campos da tabela movimentacao
+     * @param {object} connection - conexão com o banco de dados (opcional)
      * @returns {Promise<number>} - ID da movimentação
      */
-    async criar(dados) {
-        const [result] = await db.execute(
+    async criar(dados, connection = null) {
+        const dbConn = connection || db;
+        const [result] = await dbConn.execute(
             `INSERT INTO movimentacao (
         id_usuario, id_pagamento, id_responsavel, id_banco, id_rotulo,
         id_recebedor, id_banco_recebedor, id_categoria, valor,
@@ -35,9 +37,11 @@ export const movimentacaoRepository = {
      * @param {number} usuarioId
      * @param {object} filtros - { dataInicio, dataFim, dataRegistroInicio, dataRegistroFim }
      * @param {boolean} completo - se deve incluir joins para dados relacionados
+     * @param {object} connection - conexão com o banco de dados (opcional)
      * @returns {Promise<Array>}
      */
-    async listarPorUsuario(usuarioId, filtros = {}, completo = true) {
+    async listarPorUsuario(usuarioId, filtros = {}, completo = true, connection = null) {
+        const dbConn = connection || db;
         let sql = `
       SELECT m.*
       FROM movimentacao m
@@ -64,7 +68,7 @@ export const movimentacaoRepository = {
 
         sql += ' ORDER BY m.data_movimentacao DESC';
 
-        const [rows] = await db.execute(sql, params);
+        const [rows] = await dbConn.execute(sql, params);
 
         if (!completo || rows.length === 0) {
             return rows;
@@ -109,11 +113,13 @@ export const movimentacaoRepository = {
      * @param {number} id
      * @param {number} usuarioId
      * @param {boolean} completo
+     * @param {object} connection - conexão com o banco de dados (opcional)
      * @returns {Promise<object|null>}
      */
-    async buscarPorId(id, usuarioId, completo = true) {
+    async buscarPorId(id, usuarioId, completo = true, connection = null) {
+        const dbConn = connection || db;
         if (!completo) {
-            const [rows] = await db.execute(
+            const [rows] = await dbConn.execute(
                 'SELECT * FROM movimentacao WHERE id = ? AND id_usuario = ?',
                 [id, usuarioId]
             );
@@ -154,12 +160,13 @@ export const movimentacaoRepository = {
      * @param {number} id
      * @param {number} usuarioId
      * @param {object} dados - campos a serem atualizados
+     * @param {object} connection - conexão com o banco de dados (opcional)
      * @returns {Promise<number>} - número de linhas afetadas
      */
-    async atualizar(id, usuarioId, dados) {
+    async atualizar(id, usuarioId, dados, connection = null) {
         const updates = [];
         const params = [];
-
+        const dbConn = connection || db;
         const camposPermitidos = [
             'id_pagamento', 'id_responsavel', 'id_banco', 'id_rotulo',
             'id_recebedor', 'id_banco_recebedor', 'id_categoria',
@@ -182,7 +189,7 @@ export const movimentacaoRepository = {
         if (updates.length === 0) return 0;
 
         params.push(id, usuarioId);
-        const [result] = await db.execute(
+        const [result] = await dbConn.execute(
             `UPDATE movimentacao SET ${updates.join(', ')} WHERE id = ? AND id_usuario = ?`,
             params
         );
@@ -193,10 +200,12 @@ export const movimentacaoRepository = {
      * Deleta uma movimentação
      * @param {number} id
      * @param {number} usuarioId
+     * @param {object} connection - conexão com o banco de dados (opcional)
      * @returns {Promise<number>} - número de linhas afetadas
      */
-    async deletar(id, usuarioId) {
-        const [result] = await db.execute(
+    async deletar(id, usuarioId, connection = null) {
+        const dbConn = connection || db;
+        const [result] = await dbConn.execute(
             'DELETE FROM movimentacao WHERE id = ? AND id_usuario = ?',
             [id, usuarioId]
         );
@@ -208,9 +217,11 @@ export const movimentacaoRepository = {
      * @param {number} usuarioId
      * @param {object} filtros - { dataInicio, dataFim }
      * @param {string} tipo - 'ENTRADA', 'SAIDA', ou null para todos
+     * @param {object} connection - conexão com o banco de dados (opcional)
      * @returns {Promise<Array>}
      */
-    async listarPorPeriodo(usuarioId, filtros, tipo = null) {
+    async listarPorPeriodo(usuarioId, filtros, tipo = null, connection = null) {
+        const dbConn = connection || db;
         let sql = `
       SELECT m.*, cm.tipo_operacao
       FROM movimentacao m
@@ -232,7 +243,7 @@ export const movimentacaoRepository = {
             params.push(tipo);
         }
 
-        const [rows] = await db.execute(sql, params);
+        const [rows] = await dbConn.execute(sql, params);
         return rows;
     },
 
@@ -240,10 +251,12 @@ export const movimentacaoRepository = {
      * Calcula totais de entradas e saídas do período
      * @param {number} usuarioId
      * @param {object} filtros - { dataInicio, dataFim }
+     * @param {object} connection - conexão com o banco de dados (opcional)
      * @returns {Promise<object>} - { total_entradas, total_saidas }
      */
-    async resumoPorPeriodo(usuarioId, filtros) {
-        const [rows] = await db.execute(`
+    async resumoPorPeriodo(usuarioId, filtros, connection = null) {
+        const dbConn = connection || db;
+        const [rows] = await dbConn.execute(`
       SELECT
         COALESCE(SUM(CASE WHEN cm.tipo_operacao = 'ENTRADA' THEN m.valor ELSE 0 END), 0) AS total_entradas,
         COALESCE(SUM(CASE WHEN cm.tipo_operacao = 'SAIDA' THEN m.valor ELSE 0 END), 0) AS total_saidas

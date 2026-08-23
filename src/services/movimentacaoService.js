@@ -1,56 +1,52 @@
+// src/services/movimentacaoService.js
+
+import db from '../database/db.js';
 import { movimentacaoRepository, categoriaRepository, bancoRepository } from '../repositories/index.js';
 
-// Constantes de categorias (usando nomes para comparação)
 const CATEGORIA_FATURA = 'Pagamento de Fatura';
 
 export const movimentacaoService = {
     /**
-     * Valida e cria uma nova movimentação
+     * Cria uma nova movimentação e atualiza saldos dos bancos vinculados
      */
     async criar(dados) {
         // 1. Validações de domínio
         this._validarCamposObrigatorios(dados);
         this._validarRegrasNegocio(dados);
 
-        // 2. Se for pagamento de fatura, validar regras específicas
         const categoria = await categoriaRepository.buscarPorId(dados.id_categoria);
         if (categoria?.nome === CATEGORIA_FATURA) {
             this._validarPagamentoFatura(dados);
         }
 
-        // 3. Criar movimentação
-        const id = await movimentacaoRepository.criar({
-            ...dados,
-            data_movimentacao: new Date(dados.data_movimentacao)
-        });
+        // 2. Iniciar transação
+        const connection = await db.getConnection();
+        await connection.beginTransaction();
 
-        // 4. Retornar a movimentação criada com todos os dados
-        return movimentacaoRepository.buscarPorId(id, dados.id_usuario);
-    },
+        try {
+            // 3. Criar movimentação
+            const movimentacaoId = await movimentacaoRepository.criar(dados, connection);
 
-    /**
-     * Lista movimentações do usuário com filtros
-     */
-    async listar(usuarioId, filtros = {}) {
-        return movimentacaoRepository.listarPorUsuario(usuarioId, filtros, true);
-    },
+            // 4. Atualizar saldos dos bancos vinculados
+            await this.atualizarSaldosBancos(dados, connection);
 
-    /**
-     * Busca uma movimentação por ID (verificando permissão)
-     */
-    async buscarPorId(id, usuarioId) {
-        const mov = await movimentacaoRepository.buscarPorId(id, usuarioId, true);
-        if (!mov) {
-            throw new Error('Movimentação não encontrada');
+            await connection.commit();
+
+            // 5. Retornar a movimentação criada com todos os dados
+            return movimentacaoRepository.buscarPorId(movimentacaoId, dados.id_usuario);
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
         }
-        return mov;
     },
 
     /**
-     * Atualiza uma movimentação
+     * Atualiza uma movimentação existente
+     * Reverte o efeito da movimentação antiga e aplica o da nova
      */
     async atualizar(id, usuarioId, dados) {
-        // Verificar se existe
         const existente = await movimentacaoRepository.buscarPorId(id, usuarioId, false);
         if (!existente) {
             throw new Error('Movimentação não encontrada');
@@ -64,30 +60,183 @@ export const movimentacaoService = {
             }
         }
 
-        const afetados = await movimentacaoRepository.atualizar(id, usuarioId, dados);
-        if (afetados === 0) {
-            throw new Error('Nenhuma alteração realizada');
-        }
+        // Iniciar transação
+        const connection = await db.getConnection();
+        await connection.beginTransaction();
 
-        return movimentacaoRepository.buscarPorId(id, usuarioId, true);
+        try {
+            // 1. Reverter efeito da movimentação antiga
+            await this._reverterSaldosBancos(existente, connection);
+
+            // 2. Atualizar movimentação
+            const afetados = await movimentacaoRepository.atualizar(id, usuarioId, dados, connection);
+            if (afetados === 0) {
+                throw new Error('Nenhuma alteração realizada');
+            }
+
+            // 3. Aplicar efeito da movimentação atualizada
+            const dadosAtualizados = { ...existente, ...dados };
+            await this.atualizarSaldosBancos(dadosAtualizados, connection);
+
+            await connection.commit();
+
+            return movimentacaoRepository.buscarPorId(id, usuarioId);
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
+        }
     },
 
     /**
-     * Deleta uma movimentação
+     * Deleta uma movimentação e reverte seus efeitos nos saldos
      */
     async deletar(id, usuarioId) {
-        const afetados = await movimentacaoRepository.deletar(id, usuarioId);
-        if (afetados === 0) {
+        const movimentacao = await movimentacaoRepository.buscarPorId(id, usuarioId, false);
+        if (!movimentacao) {
             throw new Error('Movimentação não encontrada');
         }
-        return true;
+
+        // Iniciar transação
+        const connection = await db.getConnection();
+        await connection.beginTransaction();
+
+        try {
+            // 1. Reverter efeito da movimentação nos saldos
+            await this._reverterSaldosBancos(movimentacao, connection);
+
+            // 2. Deletar movimentação
+            const afetados = await movimentacaoRepository.deletar(id, usuarioId, connection);
+            if (afetados === 0) {
+                throw new Error('Movimentação não encontrada');
+            }
+
+            await connection.commit();
+            return true;
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
+        }
+    },
+
+    async listar(usuarioId, filtros = {}) {
+        return movimentacaoRepository.listarPorUsuario(usuarioId, filtros, true);
+    },
+
+    async buscarPorId(id, usuarioId) {
+        const mov = await movimentacaoRepository.buscarPorId(id, usuarioId, true);
+        if (!mov) {
+            throw new Error('Movimentação não encontrada');
+        }
+        return mov;
+    },
+
+    async resumo(usuarioId, filtros) {
+        return movimentacaoRepository.resumoPorPeriodo(usuarioId, filtros);
+    },
+
+    // ---------- MÉTODOS PRIVADOS DE ATUALIZAÇÃO DE SALDOS ----------
+
+    /**
+     * Atualiza saldos dos bancos vinculados com base na movimentação
+     */
+    async atualizarSaldosBancos(dados, connection) {
+        const { id_usuario, id_banco, id_banco_recebedor, valor, tipo, id_pagamento, id_categoria } = dados;
+        const valorNumerico = parseFloat(valor);
+        const isFatura = (await categoriaRepository.buscarPorId(id_categoria))?.nome === CATEGORIA_FATURA;
+
+        if (tipo === 'SAIDA') {
+            if (id_banco) {
+                const vinculo = await bancoRepository.buscarVinculoPorBanco(id_usuario, id_banco);
+                if (vinculo) {
+                    // Efetua saída do saldo do banco origem se não for fatura e for pagamento em débito/pix
+                    if (!isFatura && id_pagamento !== 1) {
+                        await bancoRepository.ajustarSaldo(vinculo.id, id_usuario, -valorNumerico, connection);
+                    }
+
+                    // Efetua saída do limite do cartão de crédito se for pagamento em cartão de crédito e não for pagamento de fatura
+                    if (!isFatura && id_pagamento === 1) {
+                        await bancoRepository.ajustarLimiteCredito(vinculo.id, id_usuario, -valorNumerico, connection);
+                    }
+
+                    // Efetua saída do saldo do banco origem se for pagamento de fatura com débito/pix
+                    if (isFatura && id_pagamento !== 1) {
+                        await bancoRepository.ajustarSaldo(vinculo.id, id_usuario, -valorNumerico, connection);
+                    } else if (isFatura && id_pagamento === 1 && id_banco !== id_banco_recebedor) {
+                        // Efetua saída do limite do cartão de crédito do banco origem se for pagamento de fatura com cartão de crédito e não for o mesmo banco do cartão destino
+                        await bancoRepository.ajustarLimiteCredito(vinculo.id, id_usuario, -valorNumerico, connection);
+                    }
+                }
+            }
+
+            if (id_banco_recebedor) {
+                const vinculo = await bancoRepository.buscarVinculoPorBanco(id_usuario, id_banco_recebedor);
+                if (vinculo) {
+                    // Efetua a entrada do valor no saldo do banco destino se não for pagamento de fatura
+                    if (!isFatura) {
+                        await bancoRepository.ajustarSaldo(vinculo.id, id_usuario, valorNumerico, connection);
+                    }
+
+                    // Efetua entrada no limite do cartão de crédito do banco destino se for pagamento de fatura independente da forma de pagamento
+                    if (isFatura && id_banco !== id_banco_recebedor) {
+                        // Restaura o limite de crédito do cartão destino (o que está sendo pago) se este for vinculado ao usuário
+                        await bancoRepository.ajustarLimiteCredito(vinculo.id, id_usuario, valorNumerico, connection);
+                    }
+                }
+            }
+        }
+
+        if (tipo === 'ENTRADA') {
+            if (id_banco_recebedor) {
+                const vinculo = await bancoRepository.buscarVinculoPorBanco(id_usuario, id_banco_recebedor);
+                if (vinculo) {
+                    // Efetua a entrada do valor no saldo do banco destino
+                    await bancoRepository.ajustarSaldo(vinculo.id, id_usuario, valorNumerico);
+                }
+            }
+        }
+
+        if (tipo === 'TRANSFERENCIA') {
+            if (id_banco) {
+                const vinculoOrigem = await bancoRepository.buscarVinculoPorBanco(id_usuario, id_banco);
+                if (vinculoOrigem) {
+                    if (id_pagamento === 1) {
+                        // Transferência com cartão de crédito: diminui limite do cartão origem
+                        await bancoRepository.ajustarLimiteCredito(vinculoOrigem.id, id_usuario, -valorNumerico, connection);
+                    } else {
+                        // Transferência normal: diminui saldo do banco origem
+                        await bancoRepository.ajustarSaldo(vinculoOrigem.id, id_usuario, -valorNumerico, connection);
+                    }
+                }
+            }
+
+            if (id_banco_recebedor) {
+                const vinculoDestino = await bancoRepository.buscarVinculoPorBanco(id_usuario, id_banco_recebedor);
+                if (vinculoDestino) {
+                    // Efetua a entrada do valor no saldo do banco destino
+                    await bancoRepository.ajustarSaldo(vinculoDestino.id, id_usuario, valorNumerico, connection);
+                }
+            }
+        }
     },
 
     /**
-     * Resumo de entradas e saídas por período
+     * Reverte os efeitos de uma movimentação nos saldos
+     * (oposto da atualizarSaldosBancos)
      */
-    async resumo(usuarioId, filtros) {
-        return movimentacaoRepository.resumoPorPeriodo(usuarioId, filtros);
+    async _reverterSaldosBancos(dados, connection) {
+        // Inverter os valores da movimentação
+        const dadosReversos = {
+            ...dados,
+            valor: -parseFloat(dados.valor),
+            tipo: dados.tipo === 'ENTRADA' ? 'SAIDA' : dados.tipo === 'SAIDA' ? 'ENTRADA' : 'TRANSFERENCIA'
+        };
+        // Se a categoria for fatura, reverter a lógica de limite
+        // Mas para simplificar, chamamos atualizarSaldosBancos com valores invertidos
+        await this.atualizarSaldosBancos(dadosReversos, connection);
     },
 
     // ---------- VALIDAÇÕES PRIVADAS ----------
