@@ -28,7 +28,7 @@ export const movimentacaoService = {
             const movimentacaoId = await movimentacaoRepository.criar(dados, connection);
 
             // 4. Atualizar saldos dos bancos vinculados
-            await this.atualizarSaldosBancos(dados, connection);
+            await this._atualizarSaldosBancos(dados, connection);
 
             await connection.commit();
 
@@ -76,7 +76,7 @@ export const movimentacaoService = {
 
             // 3. Aplicar efeito da movimentação atualizada
             const dadosAtualizados = { ...existente, ...dados };
-            await this.atualizarSaldosBancos(dadosAtualizados, connection);
+            await this._atualizarSaldosBancos(dadosAtualizados, connection);
 
             await connection.commit();
 
@@ -143,80 +143,91 @@ export const movimentacaoService = {
     /**
      * Atualiza saldos dos bancos vinculados com base na movimentação
      */
-    async atualizarSaldosBancos(dados, connection) {
+    async _atualizarSaldosBancos(dados, connection) {
         const { id_usuario, id_banco, id_banco_recebedor, valor, tipo, id_pagamento, id_categoria } = dados;
         const valorNumerico = parseFloat(valor);
         const isFatura = (await categoriaRepository.buscarPorId(id_categoria))?.nome === CATEGORIA_FATURA;
 
+        // ---------- SAIDA ----------
         if (tipo === 'SAIDA') {
+            // --- Banco origem ---
             if (id_banco) {
                 const vinculo = await bancoRepository.buscarVinculoPorBanco(id_usuario, id_banco);
                 if (vinculo) {
-                    // Efetua saída do saldo do banco origem se não for fatura e for pagamento em débito/pix
+                    // Débito/PIX (não fatura) → diminui saldo da origem
                     if (!isFatura && id_pagamento !== 1) {
                         await bancoRepository.ajustarSaldo(vinculo.id, id_usuario, -valorNumerico, connection);
                     }
 
-                    // Efetua saída do limite do cartão de crédito se for pagamento em cartão de crédito e não for pagamento de fatura
+                    // Cartão de crédito (não fatura) → diminui limite da origem
                     if (!isFatura && id_pagamento === 1) {
                         await bancoRepository.ajustarLimiteCredito(vinculo.id, id_usuario, -valorNumerico, connection);
                     }
 
-                    // Efetua saída do saldo do banco origem se for pagamento de fatura com débito/pix
+                    // Pagamento de fatura com débito/PIX → diminui saldo da origem
                     if (isFatura && id_pagamento !== 1) {
                         await bancoRepository.ajustarSaldo(vinculo.id, id_usuario, -valorNumerico, connection);
-                    } else if (isFatura && id_pagamento === 1 && id_banco !== id_banco_recebedor) {
-                        // Efetua saída do limite do cartão de crédito do banco origem se for pagamento de fatura com cartão de crédito e não for o mesmo banco do cartão destino
+                    }
+
+                    // Pagamento de fatura com cartão de crédito (origem diferente do destino)
+                    if (isFatura && id_pagamento === 1 && id_banco !== id_banco_recebedor) {
                         await bancoRepository.ajustarLimiteCredito(vinculo.id, id_usuario, -valorNumerico, connection);
                     }
                 }
             }
 
+            // --- Banco destino ---
             if (id_banco_recebedor) {
                 const vinculo = await bancoRepository.buscarVinculoPorBanco(id_usuario, id_banco_recebedor);
                 if (vinculo) {
-                    // Efetua a entrada do valor no saldo do banco destino se não for pagamento de fatura
+                    // Entrada no saldo do destino (não fatura) → aumenta saldo
                     if (!isFatura) {
                         await bancoRepository.ajustarSaldo(vinculo.id, id_usuario, valorNumerico, connection);
                     }
 
-                    // Efetua entrada no limite do cartão de crédito do banco destino se for pagamento de fatura independente da forma de pagamento
+                    // Pagamento de fatura → restaura limite do cartão destino (independente da forma de pagamento)
                     if (isFatura && id_banco !== id_banco_recebedor) {
-                        // Restaura o limite de crédito do cartão destino (o que está sendo pago) se este for vinculado ao usuário
                         await bancoRepository.ajustarLimiteCredito(vinculo.id, id_usuario, valorNumerico, connection);
                     }
                 }
             }
         }
 
+        // ---------- ENTRADA ----------
         if (tipo === 'ENTRADA') {
             if (id_banco_recebedor) {
                 const vinculo = await bancoRepository.buscarVinculoPorBanco(id_usuario, id_banco_recebedor);
                 if (vinculo) {
-                    // Efetua a entrada do valor no saldo do banco destino
-                    await bancoRepository.ajustarSaldo(vinculo.id, id_usuario, valorNumerico);
+                    await bancoRepository.ajustarSaldo(vinculo.id, id_usuario, valorNumerico, connection);
                 }
             }
         }
 
+        // ---------- TRANSFERENCIA ----------
         if (tipo === 'TRANSFERENCIA') {
+            // Validação: origem e destino não podem ser o mesmo banco
+            if (id_banco === id_banco_recebedor) {
+                throw new Error('Transferência interna deve ter bancos de origem e destino diferentes');
+            }
+
+            // Origem
             if (id_banco) {
                 const vinculoOrigem = await bancoRepository.buscarVinculoPorBanco(id_usuario, id_banco);
                 if (vinculoOrigem) {
                     if (id_pagamento === 1) {
-                        // Transferência com cartão de crédito: diminui limite do cartão origem
+                        // Transferência com cartão de crédito → diminui limite
                         await bancoRepository.ajustarLimiteCredito(vinculoOrigem.id, id_usuario, -valorNumerico, connection);
                     } else {
-                        // Transferência normal: diminui saldo do banco origem
+                        // Transferência normal → diminui saldo
                         await bancoRepository.ajustarSaldo(vinculoOrigem.id, id_usuario, -valorNumerico, connection);
                     }
                 }
             }
 
+            // Destino
             if (id_banco_recebedor) {
                 const vinculoDestino = await bancoRepository.buscarVinculoPorBanco(id_usuario, id_banco_recebedor);
                 if (vinculoDestino) {
-                    // Efetua a entrada do valor no saldo do banco destino
                     await bancoRepository.ajustarSaldo(vinculoDestino.id, id_usuario, valorNumerico, connection);
                 }
             }
@@ -225,7 +236,6 @@ export const movimentacaoService = {
 
     /**
      * Reverte os efeitos de uma movimentação nos saldos
-     * (oposto da atualizarSaldosBancos)
      */
     async _reverterSaldosBancos(dados, connection) {
         // Inverter os valores da movimentação
@@ -234,9 +244,7 @@ export const movimentacaoService = {
             valor: -parseFloat(dados.valor),
             tipo: dados.tipo === 'ENTRADA' ? 'SAIDA' : dados.tipo === 'SAIDA' ? 'ENTRADA' : 'TRANSFERENCIA'
         };
-        // Se a categoria for fatura, reverter a lógica de limite
-        // Mas para simplificar, chamamos atualizarSaldosBancos com valores invertidos
-        await this.atualizarSaldosBancos(dadosReversos, connection);
+        await this._atualizarSaldosBancos(dadosReversos, connection);
     },
 
     // ---------- VALIDAÇÕES PRIVADAS ----------
