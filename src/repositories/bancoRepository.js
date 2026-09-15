@@ -38,7 +38,7 @@ export const bancoRepository = {
         b.nome AS banco_nome,
         bu.nome_conta,
         bu.saldo,
-        bu.limite_credito
+        bu.limite
       FROM banco_usuario bu
       JOIN banco b ON bu.id_banco = b.id
       WHERE bu.id_usuario = ?
@@ -58,7 +58,7 @@ export const bancoRepository = {
      */
     async vincular(usuarioId, bancoId, nomeConta, saldo = 0, limiteCredito = 0) {
         const [result] = await db.execute(
-            `INSERT INTO banco_usuario (id_usuario, id_banco, nome_conta, saldo, limite_credito)
+            `INSERT INTO banco_usuario (id_usuario, id_banco, nome_conta, saldo, limite)
        VALUES (?, ?, ?, ?, ?)`,
             [usuarioId, bancoId, nomeConta, saldo, limiteCredito]
         );
@@ -69,7 +69,7 @@ export const bancoRepository = {
      * Atualiza saldo e limite de crédito de um banco vinculado
      * @param {number} idVinculo
      * @param {number} usuarioId
-     * @param {object} dados - { saldo?, limite_credito? }
+     * @param {object} dados - { saldo?, limite? }
      * @returns {Promise<number>} - linhas afetadas
      */
     async atualizarVinculo(idVinculo, usuarioId, dados) {
@@ -79,9 +79,9 @@ export const bancoRepository = {
             updates.push('saldo = ?');
             params.push(parseFloat(dados.saldo));
         }
-        if (dados.limite_credito !== undefined) {
-            updates.push('limite_credito = ?');
-            params.push(parseFloat(dados.limite_credito));
+        if (dados.limite !== undefined) {
+            updates.push('limite = ?');
+            params.push(parseFloat(dados.limite));
         }
         if (updates.length === 0) return 0;
 
@@ -125,11 +125,11 @@ export const bancoRepository = {
      * Busca um vínculo de banco por ID do banco e usuário
      * @param {number} usuarioId
      * @param {number} bancoId
-     * @returns {Promise<object|null>} - { id, saldo, limite_credito }
+     * @returns {Promise<object|null>} - { id, saldo, limite }
      */
     async buscarVinculoPorBanco(usuarioId, bancoId) {
         const [rows] = await db.execute(
-            'SELECT id, saldo, limite_credito FROM banco_usuario WHERE id_usuario = ? AND id_banco = ?',
+            'SELECT id, saldo, limite FROM banco_usuario WHERE id_usuario = ? AND id_banco = ?',
             [usuarioId, bancoId]
         );
         return rows[0] || null;
@@ -169,17 +169,17 @@ export const bancoRepository = {
     async ajustarLimiteCredito(vinculoId, usuarioId, valor, connection = null) {
         const dbConn = connection || db;
         const [result] = await dbConn.execute(
-            'UPDATE banco_usuario SET limite_credito = limite_credito + ? WHERE id = ? AND id_usuario = ?',
+            'UPDATE banco_usuario SET limite = limite + ? WHERE id = ? AND id_usuario = ?',
             [valor, vinculoId, usuarioId]
         );
         if (result.affectedRows === 0) {
             throw new Error('Banco não encontrado ou não vinculado');
         }
         const [rows] = await db.execute(
-            'SELECT limite_credito FROM banco_usuario WHERE id = ?',
+            'SELECT limite FROM banco_usuario WHERE id = ?',
             [vinculoId]
         );
-        return rows[0].limite_credito;
+        return rows[0].limite;
     },
 
     /**

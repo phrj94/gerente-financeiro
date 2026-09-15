@@ -16,7 +16,7 @@ router.use(verificarToken);
 
 router.get('/categorias', listarCategorias);
 router.get('/formas-pagamento', listarFormasPagamento);
-router.get('/bancos-sistema', listarBancosSistema);
+router.get('/bancos', listarBancosSistema);
 router.get('/bancos-vinculados', listarBancosVinculados);
 router.get('/responsaveis', listarResponsaveis);
 router.get('/rotulos', listarRotulos);
